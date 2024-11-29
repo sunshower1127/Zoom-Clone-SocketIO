@@ -4,9 +4,8 @@ const path = require("path");
 const socketIo = require("socket.io");
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
-const port = 3000;
+const httpServer = http.createServer(app);
+const wsServer = socketIo(httpServer);
 
 // Set Pug as the template engine
 app.set("view engine", "pug");
@@ -20,15 +19,29 @@ app.get("/", (req, res) => {
   res.render("index", { title: "Document", message: "Hello World" });
 });
 
-// Socket.IO connection
-io.on("connection", (socket) => {
-  console.log("a user connected");
-  socket.on("disconnect", () => {
-    console.log("user disconnected");
+wsServer.on("connection", (socket) => {
+  socket.on("join_room", (roomName) => {
+    const roomExists = wsServer.sockets.adapter.rooms.has(roomName);
+    socket.join(roomName);
+
+    if (!roomExists) {
+      // 방이 없었다면 처음 만든 사람
+      socket.emit("room_created");
+    } else {
+      // 방이 있었다면 참여하는 사람
+      socket.to(roomName).emit("welcome");
+    }
+  });
+  socket.on("offer", (offer, roomName) => {
+    socket.to(roomName).emit("offer", offer);
+  });
+  socket.on("answer", (answer, roomName) => {
+    socket.to(roomName).emit("answer", answer);
+  });
+  socket.on("ice", (ice, roomName) => {
+    socket.to(roomName).emit("ice", ice);
   });
 });
 
-// Start the server
-server.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
+const handleListen = () => console.log(`Listening on http://localhost:3000`);
+httpServer.listen(3000, handleListen);
